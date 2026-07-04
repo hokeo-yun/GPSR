@@ -1,4 +1,4 @@
-from .clip_models import CLIPModel
+from .clip_models_ablation import CLIPModel
 from .imagenet_models import ImagenetModel
 
 

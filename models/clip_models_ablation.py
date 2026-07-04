@@ -356,6 +356,8 @@ class CLIPModel(nn.Module):
         else:
             print("No ablation")
 
+        output = output[:, 0, :]
+
         logits = self.classification_head(output)
 
         return logits

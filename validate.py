@@ -285,6 +285,7 @@ if __name__ == '__main__':
     parser.add_argument('--select_k', type=int, default=None, help="1,2,3,4,5. number of layers selected")
     parser.add_argument('--test_data', type=str, default='UFD')
     parser.add_argument('--p', type=float, default=1)
+    parser.add_argument('--ablation', type=int, default=0)
 
 
     opt = parser.parse_args()
@@ -292,7 +293,7 @@ if __name__ == '__main__':
 
     os.makedirs(opt.result_folder, exist_ok=True)
 
-    model = get_model(opt.arch, 1, opt.select_k, False, opt.p)
+    model = get_model(opt.arch, 1, opt.select_k, False, opt.p, opt.ablation)
     state_dict = torch.load(opt.ckpt, map_location='cpu')["model"]
     model.load_state_dict(state_dict)
     print ("Model loaded..")
