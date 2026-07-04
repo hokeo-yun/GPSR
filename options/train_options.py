@@ -4,6 +4,7 @@ from .base_options import BaseOptions
 class TrainOptions(BaseOptions):
     def initialize(self, parser):
         parser = BaseOptions.initialize(self, parser)
+        parser.add_argument('--ablation', type=int, default=0)
         parser.add_argument('--p', type=float, default=1)
         parser.add_argument('--earlystop_epoch', type=int, default=5)
         parser.add_argument('--data_aug', action='store_true', help='if specified, perform additional data augmentation (photometric, blurring, jpegging)')
