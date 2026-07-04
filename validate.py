@@ -103,8 +103,7 @@ def validate(model, loader, find_thres=False, bs=256):
         print ("Length of dataset: %d" %(len(loader)))
         for i, (img, label) in enumerate(loader):
             in_tens = img.cuda()
-            out = model(in_tens)
-            output = out['logits']
+            output = model(in_tens)
             y_pred.extend(output.sigmoid().flatten().tolist())
             y_true.extend(label.flatten().tolist())
 
