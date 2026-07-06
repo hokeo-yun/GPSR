@@ -15,7 +15,7 @@ import pickle
 from tqdm import tqdm
 from io import BytesIO
 from copy import deepcopy
-from dataset_paths import UFD, GenImage, UFD_t, DRCT
+from dataset_paths import UFD, GenImage, UFD_t, DRCT, ForenSynths
 import random
 import shutil
 from scipy.ndimage import gaussian_filter
@@ -305,6 +305,8 @@ if __name__ == '__main__':
         dataset_paths = UFD_t
     elif opt.test_data == "GenImage":
         dataset_paths = GenImage
+    elif opt.test_data == "ForenSynths":
+        dataset_paths = ForenSynths
     else:
         dataset_paths = DRCT
 

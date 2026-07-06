@@ -27,20 +27,33 @@ UFD_t = [
         ]
 ]
 
-
-            # "biggan",
-            # "crn",
-            # "cyclegan",
-            # "deepfake",
-            # "gaugan",
-            # "imle",
-            # "progan",
-            # "san",
-            # "seeingdark",
-            # "stargan",
-            # "stylegan",
-            # "stylegan2",
-            # "whichfaceisreal",
+ForenSynths = [
+    dict(
+        real_path=os.path.join('/home/108/u108009/dataset/ForenSynths/test', dataset_name),
+        fake_path=os.path.join('/home/108/u108009/dataset/ForenSynths/test', dataset_name),
+        data_mode='wang2020',
+        key=dataset_name,
+        is_resize=False,
+    ) for dataset_name in [
+            "progan",
+            "stylegan",
+            "stylegan2",
+            "biggan",
+            "cyclegan",
+            "stargan",
+            "gaugan",
+            "deepfake",
+            "san",
+            "diffusion_datasets/ldm_100",
+            "diffusion_datasets/ldm_200",
+            "diffusion_datasets/ldm_200_cfg",
+            "diffusion_datasets/guided",
+            "diffusion_datasets/glide_50_27",
+            "diffusion_datasets/glide_100_10",
+            "diffusion_datasets/glide_100_27",
+            "diffusion_datasets/dalle",
+        ]
+]
 
 UFD = [
     dict(
