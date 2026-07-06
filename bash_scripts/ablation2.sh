@@ -7,7 +7,6 @@ CHECKPOINTS_DIR="checkpoints/"
 DATA_DIR="/home/108/u108009/dataset/ForenSynths"
 # DRCT: lr=0.0001, UFD: lr=0.00005
 CUDA_VISIBLE_DEVICES="${TRAIN_CUDA}" python train.py \
-    --ablation=2 \
     --p=1 \
     --name="${NAME}" \
     --wang2020_data_path=${DATA_DIR} \
@@ -25,10 +24,10 @@ CUDA_ID="0"
 CKPT_PATH="./checkpoints/ablation2/best_model.pth"
 RESULT_FOLDER="./results/ablation2/"
 
-TEST_DATA="UFD"
+TEST_DATA="ForenSynths"
 
 CUDA_VISIBLE_DEVICES="${CUDA_ID}" python3 validate.py \
-    --ablation=2 \
+	--ablation=2 \
     --p=1 \
     --test_data="${TEST_DATA}" \
     --arch="CLIP:ViT-L/14" \
@@ -40,7 +39,7 @@ CUDA_VISIBLE_DEVICES="${CUDA_ID}" python3 validate.py \
 TEST_DATA="GenImage"
 
 CUDA_VISIBLE_DEVICES="${CUDA_ID}" python3 validate.py \
-    --ablation=2 \
+	--ablation=2 \
     --p=1 \
     --test_data="${TEST_DATA}" \
     --arch="CLIP:ViT-L/14" \
@@ -49,14 +48,14 @@ CUDA_VISIBLE_DEVICES="${CUDA_ID}" python3 validate.py \
     --select_k=5 \
     --batch_size=256
 
- TEST_DATA="ForenSynths"
+TEST_DATA="UFD"
 
- CUDA_VISIBLE_DEVICES="${CUDA_ID}" python3 validate.py \
-     --ablation=2 \
-     --p=1 \
-     --test_data="${TEST_DATA}" \
-     --arch="CLIP:ViT-L/14" \
-     --ckpt="${CKPT_PATH}" \
-     --result_folder="${RESULT_FOLDER}" \
-     --select_k=5 \
-     --batch_size=256
+CUDA_VISIBLE_DEVICES="${CUDA_ID}" python3 validate.py \
+	--ablation=2 \
+    --p=1 \
+    --test_data="${TEST_DATA}" \
+    --arch="CLIP:ViT-L/14" \
+    --ckpt="${CKPT_PATH}" \
+    --result_folder="${RESULT_FOLDER}" \
+    --select_k=5 \
+    --batch_size=256

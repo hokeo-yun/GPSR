@@ -1,6 +1,6 @@
 #!/bin/bash
 # class_labels = ['tvmonitor', 'diningtable']
-NAME="ablation1"
+NAME="ablation3"
 TOTAL_EPOCHS=5
 TRAIN_CUDA=0
 CHECKPOINTS_DIR="checkpoints/"
@@ -21,13 +21,13 @@ CUDA_VISIBLE_DEVICES="${TRAIN_CUDA}" python train.py \
     --niter="${TOTAL_EPOCHS}"
 
 CUDA_ID="0"
-CKPT_PATH="./checkpoints/ablation1/best_model.pth"
-RESULT_FOLDER="./results/ablation1/"
+CKPT_PATH="./checkpoints/ablation3/best_model.pth"
+RESULT_FOLDER="./results/ablation3/"
 
 TEST_DATA="ForenSynths"
 
 CUDA_VISIBLE_DEVICES="${CUDA_ID}" python3 validate.py \
-	--ablation=1 \
+	--ablation=3 \
     --p=1 \
     --test_data="${TEST_DATA}" \
     --arch="CLIP:ViT-L/14" \
@@ -39,7 +39,7 @@ CUDA_VISIBLE_DEVICES="${CUDA_ID}" python3 validate.py \
 TEST_DATA="GenImage"
 
 CUDA_VISIBLE_DEVICES="${CUDA_ID}" python3 validate.py \
-	--ablation=1 \
+	--ablation=3 \
     --p=1 \
     --test_data="${TEST_DATA}" \
     --arch="CLIP:ViT-L/14" \
@@ -51,7 +51,7 @@ CUDA_VISIBLE_DEVICES="${CUDA_ID}" python3 validate.py \
 TEST_DATA="UFD"
 
 CUDA_VISIBLE_DEVICES="${CUDA_ID}" python3 validate.py \
-	--ablation=1 \
+	--ablation=3 \
     --p=1 \
     --test_data="${TEST_DATA}" \
     --arch="CLIP:ViT-L/14" \
