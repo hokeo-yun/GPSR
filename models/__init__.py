@@ -31,6 +31,7 @@ VALID_NAMES = [
 ]
 
 def get_model(name, num_classes, select_k, training, p, ablation_opt):
+    print(ablation_opt)
     assert name in VALID_NAMES
     if ablation_opt == 1:
         return ablation1.CLIPModel(name[5:], num_classes, select_k, training, p)
