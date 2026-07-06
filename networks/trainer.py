@@ -1,9 +1,6 @@
-import functools
 import torch
 import torch.nn as nn
-from networks.base_model import BaseModel, init_weights
-import torch.nn.functional as F
-import sys
+from networks.base_model import BaseModel
 from models import get_model
 
 class Trainer(BaseModel):
@@ -27,8 +24,6 @@ class Trainer(BaseModel):
             time.sleep(3)
             params = self.model.parameters()
 
-        
-
         if opt.optim == 'adam':
             self.optimizer = torch.optim.AdamW(params, lr=opt.lr, betas=(opt.beta1, 0.999), weight_decay=opt.weight_decay)
         elif opt.optim == 'sgd':
@@ -39,8 +34,6 @@ class Trainer(BaseModel):
         self.loss_fn = nn.BCEWithLogitsLoss()
 
         self.model.to(opt.gpu_ids[0])
-        
-
 
     def adjust_learning_rate(self, epoch, total_epochs, min_lr=1e-6):
         self.model.layer_selector.temperature = 1.0 - 0.9 * (epoch / total_epochs)
@@ -50,11 +43,9 @@ class Trainer(BaseModel):
                 return False
         return True
 
-
     def set_input(self, input):
         self.input = input[0].to(self.device)
         self.label = input[1].to(self.device).float()
-
 
     def forward(self):
         out = self.model(self.input)
@@ -62,7 +53,6 @@ class Trainer(BaseModel):
         # self.d_pure = out['d_pure']
         # self.d_ps = out['d_ps']
         self.output = out.view(-1).unsqueeze(1)
-
 
     def get_loss(self):
         return self.loss_fn(self.output.squeeze(1), self.label)
