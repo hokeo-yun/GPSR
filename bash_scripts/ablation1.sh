@@ -49,13 +49,14 @@ CUDA_VISIBLE_DEVICES="${CUDA_ID}" python3 validate.py \
     --select_k=5 \
     --batch_size=256
 
-# TEST_DATA="DRCT"
+ TEST_DATA="ForenSynths"
 
-# CUDA_VISIBLE_DEVICES="${CUDA_ID}" python3 validate.py \
-#     --p=1 \
-#     --test_data="${TEST_DATA}" \
-#     --arch="CLIP:ViT-L/14" \
-#     --ckpt="${CKPT_PATH}" \
-#     --result_folder="${RESULT_FOLDER}" \
-#     --select_k=5 \
-#     --batch_size=256
+ CUDA_VISIBLE_DEVICES="${CUDA_ID}" python3 validate.py \
+     --ablation=1 \
+     --p=1 \
+     --test_data="${TEST_DATA}" \
+     --arch="CLIP:ViT-L/14" \
+     --ckpt="${CKPT_PATH}" \
+     --result_folder="${RESULT_FOLDER}" \
+     --select_k=5 \
+     --batch_size=256
