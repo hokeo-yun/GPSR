@@ -1,4 +1,5 @@
 from .clip_models import CLIPModel
+from .ablation import ablation1, ablation2, ablation3
 from .imagenet_models import ImagenetModel
 
 
@@ -29,12 +30,19 @@ VALID_NAMES = [
     'CLIP:ViT-L/14@336px',
 ]
 
-def get_model(name, num_classes, select_k, training, p, ablation):
+def get_model(name, num_classes, select_k, training, p, ablation_opt):
     assert name in VALID_NAMES
-    if name.startswith("Imagenet:"):
-        # return ImagenetModel(name[9:]) 
-        return CLIPModel(name[5:], num_classes, select_k, training, p, ablation)
-    elif name.startswith("CLIP:"):
-        return CLIPModel(name[5:], num_classes, select_k, training, p, ablation)
+    if ablation_opt == 1:
+        return ablation1.CLIPModel(name[5:], num_classes, select_k, training, p)
+    elif ablation_opt == 2:
+        return ablation2.CLIPModel(name[5:], num_classes, select_k, training, p)
+    elif ablation_opt == 3:
+        return ablation3.CLIPModel(name[5:], num_classes, select_k, training, p)
     else:
-        assert False 
+        if name.startswith("Imagenet:"):
+            # return ImagenetModel(name[9:])
+            return CLIPModel(name[5:], num_classes, select_k, training, p)
+        elif name.startswith("CLIP:"):
+            return CLIPModel(name[5:], num_classes, select_k, training, p)
+        else:
+            assert False
