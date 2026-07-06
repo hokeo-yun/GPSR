@@ -73,22 +73,3 @@ class Trainer(BaseModel):
         self.optimizer.zero_grad()
         self.loss.backward()
         self.optimizer.step()
-
-    def compute_consistency_loss(self, d_pure, d_ps):
-        """
-        
-        L_consist = mean_k (1 - cos(d_pure^(k), d_ps^(k)))
-        
-        Args:
-            d_pure: purified artifact transition, [B, n-1, D]
-            d_ps:   PS image LTD,                 [B, n-1, D]
-        Returns:
-            scalar loss
-        """
-        # Cosine similarity along feature dim for each layer transition
-        cos_sim = F.cosine_similarity(d_pure, d_ps, dim=-1)  # [B, n-1]
-        loss = (1.0 - cos_sim).mean()
-        return loss
-
-
-
