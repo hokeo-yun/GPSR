@@ -7,6 +7,7 @@ CHECKPOINTS_DIR="checkpoints/"
 DATA_DIR="/home/108/u108009/dataset/ForenSynths"
 # DRCT: lr=0.0001, UFD: lr=0.00005
 CUDA_VISIBLE_DEVICES="${TRAIN_CUDA}" python train.py \
+    --ablation=2 \
     --p=1 \
     --name="${NAME}" \
     --wang2020_data_path=${DATA_DIR} \
