@@ -1,5 +1,5 @@
 from .clip_models import CLIPModel
-from .ablation import ablation1, ablation2, ablation3
+from .ablation import ablation1, ablation2, ablation3, ablation4, ablation5
 from .imagenet_models import ImagenetModel
 
 
@@ -39,6 +39,10 @@ def get_model(name, num_classes, select_k, training, p, ablation_opt):
         return ablation2.CLIPModel(name[5:], num_classes, select_k, training, p)
     elif ablation_opt == 3:
         return ablation3.CLIPModel(name[5:], num_classes, select_k, training, p)
+    elif ablation_opt == 4:
+        return ablation4.CLIPModel(name[5:], num_classes, select_k, training, p)
+    elif ablation_opt == 5:
+        return ablation5.CLIPModel(name[5:], num_classes, select_k, training, p)
     else:
         if name.startswith("Imagenet:"):
             # return ImagenetModel(name[9:])
