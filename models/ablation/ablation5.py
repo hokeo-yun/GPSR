@@ -190,10 +190,22 @@ class CLIPModel(nn.Module):
         patch_mask = torch.zeros(b, n, dtype=torch.bool, device=x.device)
         patch_mask.scatter_(1, mask_idx, True)
 
-        masked = patches.masked_fill(
-            patch_mask[:, :, None, None, None],
-            mask_value,
-        )
+        if mask_value == "black":
+            fill_value = torch.tensor(
+                [-1.7922626, -1.7520971, -1.4802198],
+                device=x.device,
+                dtype=x.dtype,
+            ).view(1, 1, c, 1, 1)
+            masked = torch.where(
+                patch_mask[:, :, None, None, None],
+                fill_value,
+                patches,
+            )
+        else:
+            masked = patches.masked_fill(
+                patch_mask[:, :, None, None, None],
+                mask_value,
+            )
 
         masked = masked.view(b, gh, gw, c, self.patch_size, self.patch_size)
         masked = masked.permute(0, 3, 1, 4, 2, 5).reshape(b, c, h, w)
