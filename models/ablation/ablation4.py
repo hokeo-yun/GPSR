@@ -229,7 +229,7 @@ class CLIPModel(nn.Module):
         if return_feature:
             return features
 
-        x_ps = self.add_gaussian_noise(x)
+        x_ps = self.add_gaussian_noise(x, 0.3)
         self.model.encode_image(x_ps)
         ps_all_cls_features = self._collect_all_cls_features()
         ps_selected_features, _ = self.selector(
