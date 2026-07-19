@@ -272,7 +272,7 @@ class CLIPModel(nn.Module):
         if return_feature:
             return features
 
-        x_ps = self.patch_mask(x, mask_ratio=0.5, mask_value=0.0)
+        x_ps = self.patch_mask(x, mask_ratio=0.5, mask_value='black')
         self.model.encode_image(x_ps)
         ps_all_cls_features = self._collect_all_cls_features()
         ps_selected_features, _ = self.selector(
