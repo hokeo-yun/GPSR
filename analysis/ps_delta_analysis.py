@@ -2,12 +2,18 @@ import argparse
 import csv
 import os
 import random
+import shutil
+import sys
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.utils.data
 from tqdm import tqdm
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 from dataset_paths import DRCT, ForenSynths, GenImage, UFD, UFD_t
 from models import get_model
@@ -97,7 +103,11 @@ def save_boxplot(values_real, values_fake, metric_name, output_path):
     import matplotlib.pyplot as plt
 
     plt.figure(figsize=(4, 4))
-    plt.boxplot([values_real, values_fake], labels=["real", "fake"], showfliers=False)
+    plt.boxplot(
+        [values_real, values_fake],
+        tick_labels=["real", "fake"],
+        showfliers=False,
+    )
     plt.ylabel(metric_name)
     plt.tight_layout()
     plt.savefig(output_path, dpi=300)
@@ -111,6 +121,171 @@ def summarize(values):
         "std": float(values.std()),
         "median": float(np.median(values)),
     }
+
+
+def safe_name(text):
+    return text.replace("/", "_").replace("\\", "_").replace(" ", "_")
+
+
+def save_top_samples(rows, metric, result_folder, top_k, copy_images):
+    if top_k <= 0:
+        return
+
+    metric_idx = {
+        "delta_l2": 3,
+        "cosine_shift": 4,
+    }[metric]
+
+    top_rows = sorted(rows, key=lambda row: row[metric_idx], reverse=True)[:top_k]
+    top_csv_path = os.path.join(result_folder, f"top_{top_k}_{metric}.csv")
+    with open(top_csv_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["rank", "dataset", "label", "image_path", "delta_l2", "cosine_shift"])
+        for rank, row in enumerate(top_rows, start=1):
+            writer.writerow([rank] + row)
+
+    if not copy_images:
+        return
+
+    image_dir = os.path.join(result_folder, "top_samples", metric)
+    os.makedirs(image_dir, exist_ok=True)
+    for rank, row in enumerate(top_rows, start=1):
+        dataset_key, label, image_path, delta_l2, cosine_shift = row
+        class_name = "real" if label == 0 else "fake"
+        ext = os.path.splitext(image_path)[1]
+        filename = (
+            f"{rank:03d}_{class_name}_{safe_name(dataset_key)}_"
+            f"d{delta_l2:.4f}_c{cosine_shift:.4f}{ext}"
+        )
+        dst = os.path.join(image_dir, filename)
+        if os.path.exists(image_path):
+            shutil.copy2(image_path, dst)
+
+
+def save_top_samples_per_class(rows, metric, result_folder, top_k_per_class, copy_images):
+    if top_k_per_class <= 0:
+        return
+
+    metric_idx = {
+        "delta_l2": 3,
+        "cosine_shift": 4,
+    }[metric]
+
+    class_names = {
+        0: "real",
+        1: "fake",
+    }
+
+    for class_label, class_name in class_names.items():
+        top_rows = get_top_rows(rows, metric, top_k_per_class, class_label)
+
+        top_csv_path = os.path.join(
+            result_folder,
+            f"top_{top_k_per_class}_{class_name}_{metric}.csv",
+        )
+        with open(top_csv_path, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(
+                ["rank", "dataset", "label", "image_path", "delta_l2", "cosine_shift"]
+            )
+            for rank, row in enumerate(top_rows, start=1):
+                writer.writerow([rank] + row)
+
+        if not copy_images:
+            continue
+
+        image_dir = os.path.join(result_folder, "top_samples", metric, class_name)
+        os.makedirs(image_dir, exist_ok=True)
+        for rank, row in enumerate(top_rows, start=1):
+            dataset_key, label, image_path, delta_l2, cosine_shift = row
+            ext = os.path.splitext(image_path)[1]
+            filename = (
+                f"{rank:03d}_{class_name}_{safe_name(dataset_key)}_"
+                f"d{delta_l2:.4f}_c{cosine_shift:.4f}{ext}"
+            )
+            dst = os.path.join(image_dir, filename)
+            if os.path.exists(image_path):
+                shutil.copy2(image_path, dst)
+
+
+def get_top_rows(rows, metric, top_k, class_label=None):
+    metric_idx = {
+        "delta_l2": 3,
+        "cosine_shift": 4,
+    }[metric]
+    selected_rows = rows
+    if class_label is not None:
+        selected_rows = [row for row in rows if row[1] == class_label]
+    return sorted(selected_rows, key=lambda row: row[metric_idx], reverse=True)[:top_k]
+
+
+def save_selected_subset_analysis(rows, metric, result_folder, top_k_per_class):
+    if top_k_per_class <= 0:
+        return
+
+    selected_rows = (
+        get_top_rows(rows, metric, top_k_per_class, class_label=0)
+        + get_top_rows(rows, metric, top_k_per_class, class_label=1)
+    )
+    subset_name = f"selected_{top_k_per_class * 2}_{metric}"
+    subset_csv_path = os.path.join(result_folder, f"{subset_name}.csv")
+    subset_summary_path = os.path.join(result_folder, f"{subset_name}_summary.csv")
+
+    with open(subset_csv_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["dataset", "label", "image_path", "delta_l2", "cosine_shift"])
+        writer.writerows(selected_rows)
+
+    labels = np.array([row[1] for row in selected_rows])
+    delta_l2 = np.array([row[3] for row in selected_rows])
+    cosine_shift = np.array([row[4] for row in selected_rows])
+
+    real_l2 = delta_l2[labels == 0]
+    fake_l2 = delta_l2[labels == 1]
+    real_cos = cosine_shift[labels == 0]
+    fake_cos = cosine_shift[labels == 1]
+
+    with open(subset_summary_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["metric", "class", "mean", "std", "median"])
+        for metric_name, real_values, fake_values in [
+            ("delta_l2", real_l2, fake_l2),
+            ("cosine_shift", real_cos, fake_cos),
+        ]:
+            for class_name, values in [("real", real_values), ("fake", fake_values)]:
+                stats = summarize(values)
+                writer.writerow([
+                    metric_name,
+                    class_name,
+                    stats["mean"],
+                    stats["std"],
+                    stats["median"],
+                ])
+
+    save_histogram(
+        real_l2,
+        fake_l2,
+        "||f(x) - f(PS(x))||",
+        os.path.join(result_folder, f"{subset_name}_delta_l2_hist.png"),
+    )
+    save_boxplot(
+        real_l2,
+        fake_l2,
+        "||f(x) - f(PS(x))||",
+        os.path.join(result_folder, f"{subset_name}_delta_l2_box.png"),
+    )
+    save_histogram(
+        real_cos,
+        fake_cos,
+        "1 - cosine(f(x), f(PS(x)))",
+        os.path.join(result_folder, f"{subset_name}_cosine_shift_hist.png"),
+    )
+    save_boxplot(
+        real_cos,
+        fake_cos,
+        "1 - cosine(f(x), f(PS(x)))",
+        os.path.join(result_folder, f"{subset_name}_cosine_shift_box.png"),
+    )
 
 
 def main():
@@ -129,6 +304,9 @@ def main():
     parser.add_argument("--mask_ratio", type=float, default=0.5)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--num_workers", type=int, default=4)
+    parser.add_argument("--top_k", type=int, default=30)
+    parser.add_argument("--top_k_per_class", type=int, default=0)
+    parser.add_argument("--copy_top_images", action="store_true")
     opt = parser.parse_args()
 
     os.makedirs(opt.result_folder, exist_ok=True)
@@ -163,9 +341,12 @@ def main():
                 num_workers=opt.num_workers,
             )
 
+            sample_offset = 0
             for img, label in tqdm(loader, desc=dataset_path["key"]):
                 x = img.cuda()
                 label = label.numpy()
+                batch_paths = dataset.total_list[sample_offset : sample_offset + len(label)]
+                sample_offset += len(label)
                 selection_probs = make_selection_probs(model, x.size(0), x.device)
 
                 origin_features = collect_selected_features(model, x, selection_probs)
@@ -191,26 +372,28 @@ def main():
                     dim=-1,
                 ).mean(dim=1)
 
-                for sample_label, sample_l2, sample_cosine in zip(
+                for sample_label, image_path, sample_l2, sample_cosine in zip(
                     label,
+                    batch_paths,
                     delta_l2.cpu().tolist(),
                     cosine_shift.cpu().tolist(),
                 ):
                     rows.append([
                         dataset_path["key"],
                         int(sample_label),
+                        image_path,
                         float(sample_l2),
                         float(sample_cosine),
                     ])
 
     with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["dataset", "label", "delta_l2", "cosine_shift"])
+        writer.writerow(["dataset", "label", "image_path", "delta_l2", "cosine_shift"])
         writer.writerows(rows)
 
     labels = np.array([row[1] for row in rows])
-    delta_l2 = np.array([row[2] for row in rows])
-    cosine_shift = np.array([row[3] for row in rows])
+    delta_l2 = np.array([row[3] for row in rows])
+    cosine_shift = np.array([row[4] for row in rows])
 
     real_l2 = delta_l2[labels == 0]
     fake_l2 = delta_l2[labels == 1]
@@ -233,6 +416,47 @@ def main():
                     stats["std"],
                     stats["median"],
                 ])
+
+    save_top_samples(
+        rows,
+        "delta_l2",
+        opt.result_folder,
+        opt.top_k,
+        opt.copy_top_images,
+    )
+    save_top_samples(
+        rows,
+        "cosine_shift",
+        opt.result_folder,
+        opt.top_k,
+        opt.copy_top_images,
+    )
+    save_top_samples_per_class(
+        rows,
+        "delta_l2",
+        opt.result_folder,
+        opt.top_k_per_class,
+        opt.copy_top_images,
+    )
+    save_top_samples_per_class(
+        rows,
+        "cosine_shift",
+        opt.result_folder,
+        opt.top_k_per_class,
+        opt.copy_top_images,
+    )
+    save_selected_subset_analysis(
+        rows,
+        "delta_l2",
+        opt.result_folder,
+        opt.top_k_per_class,
+    )
+    save_selected_subset_analysis(
+        rows,
+        "cosine_shift",
+        opt.result_folder,
+        opt.top_k_per_class,
+    )
 
     save_histogram(
         real_l2,

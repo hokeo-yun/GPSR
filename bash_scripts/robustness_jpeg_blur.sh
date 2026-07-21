@@ -1,9 +1,9 @@
 #!/bin/bash
 
 CUDA_ID="0"
-TEST_DATA="GenImage"
+TEST_DATA="ForenSynths"
 CKPT_PATH="./checkpoints/ptrain_3090_0_1/best_model.pth"
-RESULT_ROOT="./results/robustness_jpeg_blur"
+RESULT_ROOT="./results/robustness_jpeg_blur_ForenSynths"
 
 ARCH="CLIP:ViT-L/14"
 SELECT_K=5
@@ -25,7 +25,7 @@ CUDA_VISIBLE_DEVICES="${CUDA_ID}" python3 validate.py \
     --select_k="${SELECT_K}" \
     --batch_size="${BATCH_SIZE}"
 
-for QUALITY in 100 90 80 70 60 50 40 30
+for QUALITY in 100 90 80 70 60
 do
     echo "======================================"
     echo "JPEG robustness: quality=${QUALITY}"
