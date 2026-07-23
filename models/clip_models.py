@@ -324,7 +324,7 @@ class CLIPModel(nn.Module):
             d_pure_list.append(d_pure_k)
             d_q_list.append(d_q_k)
 
-        d_pure = torch.stack(d_pure_list, dim=1)  # [B, n-1, D]
+        d_pure = torch.stack(d_pure_list, dim=1)  # [B, selected_num, D]
         d_q = torch.stack(d_q_list, dim=1)
 
         return d_pure, d_q, origin_features, ps_features

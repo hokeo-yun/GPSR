@@ -1,4 +1,4 @@
-from .. import clip
+from .clip import clip
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -9,22 +9,7 @@ CHANNELS = {
     "ViT-L/14": 768,
 }
 
-class GatingNetwork(nn.Module):
-    def __init__(self, hidden_dim=16):
-        super(GatingNetwork, self).__init__()
-        self.mlp = nn.Sequential(
-            nn.Linear(4, hidden_dim),
-            nn.GELU(),
-            nn.Linear(hidden_dim, 1),
-            nn.Sigmoid()
-        )
-
-    def forward(self, o_mean, o_norm, ps_mean, ps_norm):
-        # Stack into [B, 3]
-        gate_input = torch.stack([o_mean, o_norm, ps_mean, ps_norm], dim=-1)
-        g = self.mlp(gate_input)  # [B, 1]
-        return g
-
+# abliation 双分支 原图 + res 分支
 class Hook:
     def __init__(self, name, module):
         self.name = name
@@ -133,11 +118,6 @@ class CLIPModel(nn.Module):
         self.delta_cls = nn.Parameter(torch.randn(1, 1, proj_dim))
         self.patch_size = 16
 
-        self.gating_networks = nn.ModuleList([
-            GatingNetwork(hidden_dim=16)
-            for _ in range(select_num)
-        ])
-
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=proj_dim,
             nhead=8,
@@ -160,13 +140,54 @@ class CLIPModel(nn.Module):
             x_out = hook.output[0, :, :]  # [B, D]
             tensors.append(x_out)
         return torch.stack(tensors, dim=1)  # [B, num_layers, D]
-    
-    def add_gaussian_noise(self, x, noise_std=0.1):
-        if noise_std <= 0:
-            return x
 
-        noise = torch.randn_like(x) * noise_std
-        return x + noise
+    def patch_shuffle_p(self, x):
+        b, c, h, w = x.shape
+        if h % self.patch_size != 0 or w % self.patch_size != 0:
+            raise ValueError(
+                f"Input size ({h}, {w}) must be divisible by patch_size ({self.patch_size})."
+            )
+
+        gh = h // self.patch_size
+        gw = w // self.patch_size
+        n = gh * gw
+
+        # 计算需要打乱的 Patch 数量
+        num_to_shuffle = int(self.p * n)
+        
+        # 如果打乱数量 <= 1，毫无意义，直接返回原图
+        if num_to_shuffle <= 1:
+            return x 
+
+        patches = x.view(b, c, gh, self.patch_size, gw, self.patch_size)
+        patches = patches.permute(0, 2, 4, 1, 3, 5).reshape(
+            b, n, c, self.patch_size, self.patch_size
+        )
+
+        final_idx = torch.arange(n, device=x.device).unsqueeze(0).expand(b, n).clone()
+
+        rand_pos = torch.rand(b, n, device=x.device)
+        to_shuffle_pos = torch.argsort(rand_pos, dim=1)[:, :num_to_shuffle]
+
+        idx_to_shuffle = final_idx.gather(1, to_shuffle_pos)
+
+        sorted_desc, indices_desc = torch.sort(idx_to_shuffle, dim=1, descending=False)
+        
+        # rand_shuffle = torch.rand(b, num_to_shuffle, device=x.device)
+        # shuffled_subset = idx_to_shuffle.gather(1, torch.argsort(rand_shuffle, dim=1))
+
+        final_idx.scatter_(1, sorted_desc, to_shuffle_pos)
+
+        gather_idx = final_idx.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).expand(
+            -1, -1, c, self.patch_size, self.patch_size
+        )
+
+        shuffled = patches.gather(1, gather_idx)
+
+        shuffled = shuffled.view(b, gh, gw, c, self.patch_size, self.patch_size)
+        shuffled = shuffled.permute(0, 3, 1, 4, 2, 5).reshape(b, c, h, w)
+        
+        return shuffled
 
     def self_attention(self, selected_features, delta=False):
         if delta:
@@ -190,37 +211,6 @@ class CLIPModel(nn.Module):
         transformer_output = self.encoder(g)
         return transformer_output
 
-    def compute_purified(self, origin_features, ps_features):
-        delta_d = origin_features - ps_features  # [B, n, D]
-        d_pure_list = []
-        d_q_list = []
-        for k in range(delta_d.size(1)):  # iterate over n-1 transitions
-            d_k = origin_features[:, k, :]        # [B, D]
-            ps_k = ps_features[:, k, :]
-            delta_d_k = delta_d[:, k, :] # [B, D]
-
-            # Compute gating input statistics
-            delta_d_mean = delta_d_k.mean(dim=-1)          # [B]
-            delta_d_norm = delta_d_k.norm(dim=-1)          # [B]
-
-            d_k_mean = d_k.mean(dim=-1)
-            d_k_norm = d_k.norm(dim=-1)
-            ps_k_mean = ps_k.mean(dim=-1)
-            ps_k_norm = ps_k.norm(dim=-1)
-
-            # Predict gating value g^(k) in [0, 1]
-            g_k = self.gating_networks[k](d_k_mean, d_k_norm, ps_k_mean, ps_k_norm)  # [B, 1]
-
-            d_pure_k = g_k * delta_d_k  # [B, D]
-            d_q_k = d_k - g_k * delta_d_k
-            d_pure_list.append(d_pure_k)
-            d_q_list.append(d_q_k)
-
-        d_pure = torch.stack(d_pure_list, dim=1)  # [B, n-1, D]
-        d_q = torch.stack(d_q_list, dim=1)
-
-        return d_pure, d_q, origin_features, ps_features
-
     def forward(self, x, return_feature=False):
         features = self.model.encode_image(x)
         all_cls_features = self._collect_all_cls_features()
@@ -229,7 +219,7 @@ class CLIPModel(nn.Module):
         if return_feature:
             return features
 
-        x_ps = self.add_gaussian_noise(x, 0.3)
+        x_ps = self.patch_shuffle_p(x)
         self.model.encode_image(x_ps)
         ps_all_cls_features = self._collect_all_cls_features()
         ps_selected_features, _ = self.selector(
@@ -237,26 +227,14 @@ class CLIPModel(nn.Module):
             selection_probs=selection_probs,
         )
 
-        # diff_selected_features = origin_selected_features - ps_selected_features
-        d_pure, d_q, d_orig, d_ps = self.compute_purified(
-            origin_features=origin_selected_features, ps_features=ps_selected_features
-        )
+        diff_selected_features = origin_selected_features - ps_selected_features
 
-        origin_output = self.self_attention(d_orig, False)
-        # origin_output = self.self_attention(d_q, False)
-        delta_output = self.self_attention(d_pure, True)
-        # delta_output = self.self_attention(d_q, True)
+        origin_output = self.self_attention(origin_selected_features, False)
+        delta_output = self.self_attention(diff_selected_features, True)
 
         origin_output = origin_output[:, 0, :]
         delta_output = delta_output[:, 0, :]
 
-        # cls = [origin_output, delta_output]
-        # tokens = torch.stack(cls, dim=0)
-        # tokens = F.gelu(self.fc1(tokens))
-        # tokens = self.fc2(tokens).squeeze().permute(1, 0)
-        # result = self.fc3(tokens).view(-1).unsqueeze(1)
-
         logits = self.classification_head(torch.cat((origin_output, delta_output), dim=1))
-        # logits = self.classification_head(delta_output)
 
         return logits

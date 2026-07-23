@@ -8,25 +8,7 @@ CHANNELS = {
     "ViT-L/14": 768,
 }
 
-
-class GatingNetwork(nn.Module):
-    def __init__(self, hidden_dim=16):
-        super(GatingNetwork, self).__init__()
-        # Input: [mean(d), ||d||, ||delta||] -> 3 scalar features
-        self.mlp = nn.Sequential(
-            nn.Linear(4, hidden_dim),
-            nn.GELU(),
-            nn.Linear(hidden_dim, 1),
-            nn.Sigmoid()
-        )
-
-    def forward(self, o_mean, o_norm, ps_mean, ps_norm):
-        # Stack into [B, 3]
-        gate_input = torch.stack([o_mean, o_norm, ps_mean, ps_norm], dim=-1)
-        g = self.mlp(gate_input)  # [B, 1]
-        return g
-
-
+# abliation 只用 res 分支
 class Hook:
     def __init__(self, name, module):
         self.name = name
@@ -130,15 +112,12 @@ class CLIPModel(nn.Module):
             training=training,
         )
 
+        self.origin_pos_embedding = nn.Embedding(select_num, proj_dim)
         self.delta_pos_embedding = nn.Embedding(select_num, proj_dim)
 
+        self.origin_cls = nn.Parameter(torch.randn(1, 1, proj_dim))
         self.delta_cls = nn.Parameter(torch.randn(1, 1, proj_dim))
         self.patch_size = 16
-
-        self.gating_networks = nn.ModuleList([
-            GatingNetwork(hidden_dim=16)
-            for _ in range(select_num)
-        ])
 
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=proj_dim,
@@ -152,8 +131,8 @@ class CLIPModel(nn.Module):
         self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=1)
 
         self.classification_head = nn.Sequential(
-            nn.LayerNorm(proj_dim),
-            nn.Linear(proj_dim, num_classes),
+            nn.LayerNorm(proj_dim * 2),
+            nn.Linear(proj_dim * 2, num_classes),
         )
 
     def _collect_all_cls_features(self):
@@ -211,11 +190,17 @@ class CLIPModel(nn.Module):
 
         return shuffled
 
-    def self_attention(self, selected_features):
-        pos_emb = self.delta_pos_embedding(
-            torch.arange(selected_features.size(1), device=selected_features.device)
-        )
-        cls_token = self.delta_cls
+    def self_attention(self, selected_features, delta=False):
+        if delta:
+            pos_emb = self.delta_pos_embedding(
+                torch.arange(selected_features.size(1), device=selected_features.device)
+            )
+            cls_token = self.delta_cls
+        else:
+            pos_emb = self.origin_pos_embedding(
+                torch.arange(selected_features.size(1), device=selected_features.device)
+            )
+            cls_token = self.origin_cls
 
         batch_size = selected_features.size(0)
         pos_emb = pos_emb.unsqueeze(0).expand(batch_size, -1, -1)
@@ -226,35 +211,6 @@ class CLIPModel(nn.Module):
 
         transformer_output = self.encoder(g)
         return transformer_output
-
-    def compute_purified(self, origin_features, ps_features):
-        # Step 1: Compute LTD for both views
-        delta_d = origin_features - ps_features  # [B, n, D]
-
-        d_pure_list = []
-        d_q_list = []
-        for k in range(delta_d.size(1)):  # iterate over n-1 transitions
-            d_k = origin_features[:, k, :]  # [B, D]
-            ps_k = ps_features[:, k, :]
-            delta_d_k = delta_d[:, k, :]  # [B, D]
-
-            d_k_mean = d_k.mean(dim=-1)
-            d_k_norm = d_k.norm(dim=-1)
-            ps_k_mean = ps_k.mean(dim=-1)
-            ps_k_norm = ps_k.norm(dim=-1)
-
-            # Predict gating value g^(k) in [0, 1]
-            g_k = self.gating_networks[k](d_k_mean, d_k_norm, ps_k_mean, ps_k_norm)  # [B, 1]
-
-            d_pure_k = g_k * delta_d_k  # [B, D]
-            d_q_k = d_k - g_k * delta_d_k
-            d_pure_list.append(d_pure_k)
-            d_q_list.append(d_q_k)
-
-        d_pure = torch.stack(d_pure_list, dim=1)  # [B, n-1, D]
-        d_q = torch.stack(d_q_list, dim=1)
-
-        return d_pure, d_q, origin_features, ps_features
 
     def forward(self, x, return_feature=False):
         features = self.model.encode_image(x)
@@ -272,12 +228,14 @@ class CLIPModel(nn.Module):
             selection_probs=selection_probs,
         )
 
-        d_pure, d_q, d_orig, d_ps = self.compute_purified(
-            origin_features=origin_selected_features, ps_features=ps_selected_features
-        )
+        diff_selected_features = origin_selected_features - ps_selected_features
 
-        output = self.self_attention(d_pure)[:, 0, :]
+        origin_output = self.self_attention(origin_selected_features, False)
+        delta_output = self.self_attention(diff_selected_features, True)
 
-        logits = self.classification_head(output)
+        origin_output = origin_output[:, 0, :]
+        delta_output = delta_output[:, 0, :]
+
+        logits = self.classification_head(torch.cat((origin_output, delta_output), dim=1))
 
         return logits

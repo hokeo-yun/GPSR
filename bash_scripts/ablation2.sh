@@ -8,7 +8,7 @@ DATA_DIR="/home/108/u108009/dataset/ForenSynths"
 # DRCT: lr=0.0001, UFD: lr=0.00005
 CUDA_VISIBLE_DEVICES="${TRAIN_CUDA}" python train.py \
     --ablation=2 \
-    --p=1 \
+    --p=0.1 \
     --name="${NAME}" \
     --wang2020_data_path=${DATA_DIR} \
     --checkpoints_dir="${CHECKPOINTS_DIR}" \
@@ -29,7 +29,7 @@ TEST_DATA="ForenSynths"
 
 CUDA_VISIBLE_DEVICES="${CUDA_ID}" python3 validate.py \
 	--ablation=2 \
-    --p=1 \
+    --p=0.1 \
     --test_data="${TEST_DATA}" \
     --arch="CLIP:ViT-L/14" \
     --ckpt="${CKPT_PATH}" \
@@ -41,7 +41,7 @@ TEST_DATA="GenImage"
 
 CUDA_VISIBLE_DEVICES="${CUDA_ID}" python3 validate.py \
 	--ablation=2 \
-    --p=1 \
+    --p=0.1 \
     --test_data="${TEST_DATA}" \
     --arch="CLIP:ViT-L/14" \
     --ckpt="${CKPT_PATH}" \
@@ -53,7 +53,7 @@ TEST_DATA="UFD"
 
 CUDA_VISIBLE_DEVICES="${CUDA_ID}" python3 validate.py \
 	--ablation=2 \
-    --p=1 \
+    --p=0.1 \
     --test_data="${TEST_DATA}" \
     --arch="CLIP:ViT-L/14" \
     --ckpt="${CKPT_PATH}" \
