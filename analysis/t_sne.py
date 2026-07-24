@@ -110,6 +110,22 @@ def save_tsne_csv(coords, labels, dataset_names, output_path):
             ])
 
 
+def save_combined_tsne_csv(coords, labels, branches, dataset_names, output_path):
+    with open(output_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["x", "y", "label", "class", "branch", "dataset"])
+        for coord, label, branch, dataset_name in zip(coords, labels, branches, dataset_names):
+            class_name = "real" if label == 0 else "fake"
+            writer.writerow([
+                float(coord[0]),
+                float(coord[1]),
+                int(label),
+                class_name,
+                branch,
+                dataset_name,
+            ])
+
+
 def plot_tsne(coords, labels, title, output_path):
     plt.figure(figsize=(6.2, 5.0))
 
@@ -119,6 +135,39 @@ def plot_tsne(coords, labels, title, output_path):
 
     plt.scatter(real[:, 0], real[:, 1], s=12, alpha=0.7, label="Real")
     plt.scatter(fake[:, 0], fake[:, 1], s=12, alpha=0.7, label="Fake")
+    plt.title(title)
+    plt.xlabel("t-SNE-1")
+    plt.ylabel("t-SNE-2")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close()
+
+
+def plot_combined_tsne(coords, labels, branches, title, output_path):
+    plt.figure(figsize=(6.8, 5.4))
+
+    labels = np.asarray(labels)
+    branches = np.asarray(branches)
+    groups = [
+        ("origin", 0, "Origin-Real", "o"),
+        ("origin", 1, "Origin-Fake", "s"),
+        ("delta", 0, "Delta-Real", "^"),
+        ("delta", 1, "Delta-Fake", "D"),
+    ]
+
+    for branch, label, name, marker in groups:
+        mask = (branches == branch) & (labels == label)
+        group_coords = coords[mask]
+        plt.scatter(
+            group_coords[:, 0],
+            group_coords[:, 1],
+            s=12,
+            alpha=0.7,
+            marker=marker,
+            label=name,
+        )
+
     plt.title(title)
     plt.xlabel("t-SNE-1")
     plt.ylabel("t-SNE-2")
@@ -199,13 +248,30 @@ def main():
     origin_coords = run_tsne(origin_features, opt.seed, opt.perplexity)
     delta_coords = run_tsne(delta_features, opt.seed, opt.perplexity)
 
+    combined_features = np.concatenate([origin_features, delta_features], axis=0)
+    combined_labels = np.concatenate([labels, labels], axis=0)
+    combined_branches = np.array(
+        ["origin"] * len(labels) + ["delta"] * len(labels)
+    )
+    combined_dataset_names = dataset_names + dataset_names
+    combined_coords = run_tsne(combined_features, opt.seed, opt.perplexity)
+
     origin_csv = os.path.join(opt.result_folder, "origin_output_tsne.csv")
     delta_csv = os.path.join(opt.result_folder, "delta_output_tsne.csv")
+    combined_csv = os.path.join(opt.result_folder, "origin_delta_combined_tsne.csv")
     save_tsne_csv(origin_coords, labels, dataset_names, origin_csv)
     save_tsne_csv(delta_coords, labels, dataset_names, delta_csv)
+    save_combined_tsne_csv(
+        combined_coords,
+        combined_labels,
+        combined_branches,
+        combined_dataset_names,
+        combined_csv,
+    )
 
     origin_png = os.path.join(opt.result_folder, "origin_output_tsne.png")
     delta_png = os.path.join(opt.result_folder, "delta_output_tsne.png")
+    combined_png = os.path.join(opt.result_folder, "origin_delta_combined_tsne.png")
     plot_tsne(
         origin_coords,
         labels,
@@ -218,10 +284,18 @@ def main():
         f"{dataset_title}: delta_output t-SNE",
         delta_png,
     )
+    plot_combined_tsne(
+        combined_coords,
+        combined_labels,
+        combined_branches,
+        f"{dataset_title}: origin_output and delta_output t-SNE",
+        combined_png,
+    )
 
     print(f"Saved origin_output t-SNE to {origin_png}")
     print(f"Saved delta_output t-SNE to {delta_png}")
-    print(f"Saved t-SNE coordinates to {origin_csv} and {delta_csv}")
+    print(f"Saved combined t-SNE to {combined_png}")
+    print(f"Saved t-SNE coordinates to {origin_csv}, {delta_csv}, and {combined_csv}")
 
 
 if __name__ == "__main__":
