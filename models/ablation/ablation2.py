@@ -112,10 +112,8 @@ class CLIPModel(nn.Module):
             training=training,
         )
 
-        self.origin_pos_embedding = nn.Embedding(select_num, proj_dim)
         self.delta_pos_embedding = nn.Embedding(select_num, proj_dim)
 
-        self.origin_cls = nn.Parameter(torch.randn(1, 1, proj_dim))
         self.delta_cls = nn.Parameter(torch.randn(1, 1, proj_dim))
         self.patch_size = 16
 
@@ -131,8 +129,8 @@ class CLIPModel(nn.Module):
         self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=1)
 
         self.classification_head = nn.Sequential(
-            nn.LayerNorm(proj_dim * 2),
-            nn.Linear(proj_dim * 2, num_classes),
+            nn.LayerNorm(proj_dim),
+            nn.Linear(proj_dim, num_classes),
         )
 
     def _collect_all_cls_features(self):
@@ -191,16 +189,10 @@ class CLIPModel(nn.Module):
         return shuffled
 
     def self_attention(self, selected_features, delta=False):
-        if delta:
-            pos_emb = self.delta_pos_embedding(
-                torch.arange(selected_features.size(1), device=selected_features.device)
-            )
-            cls_token = self.delta_cls
-        else:
-            pos_emb = self.origin_pos_embedding(
-                torch.arange(selected_features.size(1), device=selected_features.device)
-            )
-            cls_token = self.origin_cls
+        pos_emb = self.delta_pos_embedding(
+            torch.arange(selected_features.size(1), device=selected_features.device)
+        )
+        cls_token = self.delta_cls
 
         batch_size = selected_features.size(0)
         pos_emb = pos_emb.unsqueeze(0).expand(batch_size, -1, -1)
@@ -229,13 +221,10 @@ class CLIPModel(nn.Module):
         )
 
         diff_selected_features = origin_selected_features - ps_selected_features
-
-        origin_output = self.self_attention(origin_selected_features, False)
         delta_output = self.self_attention(diff_selected_features, True)
 
-        origin_output = origin_output[:, 0, :]
         delta_output = delta_output[:, 0, :]
 
-        logits = self.classification_head(torch.cat((origin_output, delta_output), dim=1))
+        logits = self.classification_head(delta_output)
 
         return logits

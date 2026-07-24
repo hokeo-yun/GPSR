@@ -26,7 +26,6 @@ class GatingNetwork(nn.Module):
         g = self.mlp(gate_input)  # [B, 1]
         return g
 
-
 class Hook:
     def __init__(self, name, module):
         self.name = name
@@ -210,8 +209,37 @@ class CLIPModel(nn.Module):
         shuffled = shuffled.permute(0, 3, 1, 4, 2, 5).reshape(b, c, h, w)
 
         return shuffled
+    
+    def compute_purified(self, origin_features, ps_features):
+        # Step 1: Compute LTD for both views
+        delta_d = origin_features - ps_features  # [B, n, D]
 
-    def self_attention(self, selected_features):
+        d_pure_list = []
+        d_q_list = []
+        for k in range(delta_d.size(1)):  # iterate over n-1 transitions
+            d_k = origin_features[:, k, :]  # [B, D]
+            ps_k = ps_features[:, k, :]
+            delta_d_k = delta_d[:, k, :]  # [B, D]
+
+            d_k_mean = d_k.mean(dim=-1)
+            d_k_norm = d_k.norm(dim=-1)
+            ps_k_mean = ps_k.mean(dim=-1)
+            ps_k_norm = ps_k.norm(dim=-1)
+
+            # Predict gating value g^(k) in [0, 1]
+            g_k = self.gating_networks[k](d_k_mean, d_k_norm, ps_k_mean, ps_k_norm)  # [B, 1]
+
+            d_pure_k = g_k * delta_d_k  # [B, D]
+            d_q_k = d_k - g_k * delta_d_k
+            d_pure_list.append(d_pure_k)
+            d_q_list.append(d_q_k)
+
+        d_pure = torch.stack(d_pure_list, dim=1)  # [B, n-1, D]
+        d_q = torch.stack(d_q_list, dim=1)
+
+        return d_pure, d_q, origin_features, ps_features
+
+    def self_attention(self, selected_features, delta=False):
         pos_emb = self.delta_pos_embedding(
             torch.arange(selected_features.size(1), device=selected_features.device)
         )
@@ -228,15 +256,17 @@ class CLIPModel(nn.Module):
         return transformer_output
 
     def compute_purified(self, origin_features, ps_features):
-        # Step 1: Compute LTD for both views
         delta_d = origin_features - ps_features  # [B, n, D]
-
         d_pure_list = []
         d_q_list = []
         for k in range(delta_d.size(1)):  # iterate over n-1 transitions
-            d_k = origin_features[:, k, :]  # [B, D]
+            d_k = origin_features[:, k, :]        # [B, D]
             ps_k = ps_features[:, k, :]
-            delta_d_k = delta_d[:, k, :]  # [B, D]
+            delta_d_k = delta_d[:, k, :] # [B, D]
+
+            # Compute gating input statistics
+            delta_d_mean = delta_d_k.mean(dim=-1)          # [B]
+            delta_d_norm = delta_d_k.norm(dim=-1)          # [B]
 
             d_k_mean = d_k.mean(dim=-1)
             d_k_norm = d_k.norm(dim=-1)
@@ -275,9 +305,10 @@ class CLIPModel(nn.Module):
         d_pure, d_q, d_orig, d_ps = self.compute_purified(
             origin_features=origin_selected_features, ps_features=ps_selected_features
         )
+        delta_output = self.self_attention(d_pure, True)
 
-        output = self.self_attention(d_pure)[:, 0, :]
+        delta_output = delta_output[:, 0, :]
 
-        logits = self.classification_head(output)
+        logits = self.classification_head(delta_output)
 
         return logits
