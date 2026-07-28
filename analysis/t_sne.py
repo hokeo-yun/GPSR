@@ -135,9 +135,7 @@ def plot_tsne(coords, labels, title, output_path):
 
     plt.scatter(real[:, 0], real[:, 1], s=12, alpha=0.7, label="Real")
     plt.scatter(fake[:, 0], fake[:, 1], s=12, alpha=0.7, label="Fake")
-    plt.title(title)
-    plt.xlabel("t-SNE-1")
-    plt.ylabel("t-SNE-2")
+    plt.title("ProGAN")
     plt.legend()
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
@@ -150,10 +148,10 @@ def plot_combined_tsne(coords, labels, branches, title, output_path):
     labels = np.asarray(labels)
     branches = np.asarray(branches)
     groups = [
-        ("origin", 0, "Origin-Real", "o"),
-        ("origin", 1, "Origin-Fake", "s"),
-        ("delta", 0, "Delta-Real", "^"),
-        ("delta", 1, "Delta-Fake", "D"),
+        ("origin", 0, r"Origin-Real", "o"),
+        ("origin", 1, r"Origin-Fake", "o"),
+        ("delta", 0, r"Delta-Real", "o"),
+        ("delta", 1, r"Delta-Fake", "o"),
     ]
 
     for branch, label, name, marker in groups:
@@ -162,15 +160,13 @@ def plot_combined_tsne(coords, labels, branches, title, output_path):
         plt.scatter(
             group_coords[:, 0],
             group_coords[:, 1],
-            s=12,
+            s=8,
             alpha=0.7,
             marker=marker,
             label=name,
         )
 
-    plt.title(title)
-    plt.xlabel("t-SNE-1")
-    plt.ylabel("t-SNE-2")
+    plt.title("SD v1.4")
     plt.legend()
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches="tight")

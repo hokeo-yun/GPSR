@@ -161,12 +161,44 @@ class CLIPModel(nn.Module):
             tensors.append(x_out)
         return torch.stack(tensors, dim=1)  # [B, num_layers, D]
     
-    def add_gaussian_noise(self, x, noise_std=0.1):
-        if noise_std <= 0:
+    # def add_gaussian_noise(self, x, noise_std=1.0, pixel_ratio=0.1):
+    #     if noise_std <= 0 or pixel_ratio <= 0:
+    #         return x
+
+    #     pixel_ratio = max(0.0, min(1.0, float(pixel_ratio)))
+    #     noise = torch.randn_like(x) * noise_std
+    #     pixel_mask = torch.rand(
+    #         x.size(0),
+    #         1,
+    #         x.size(2),
+    #         x.size(3),
+    #         device=x.device,
+    #         dtype=x.dtype,
+    #     ) < pixel_ratio
+
+    #     return x + noise * pixel_mask
+    def add_gaussian_noise(self, x, noise_std=1.0, pixel_ratio=0.1):
+        if noise_std <= 0 or pixel_ratio <= 0:
             return x
 
-        noise = torch.randn_like(x) * noise_std
-        return x + noise
+        pixel_ratio = max(0.0, min(1.0, float(pixel_ratio)))
+        mean = x.new_tensor([0.48145466, 0.4578275, 0.40821073]).view(1, 3, 1, 1)
+        std = x.new_tensor([0.26862954, 0.26130258, 0.27577711]).view(1, 3, 1, 1)
+
+        x_origin = x * std + mean
+        noise = torch.randn_like(x_origin) * noise_std
+        pixel_mask = torch.rand(
+            x.size(0),
+            1,
+            x.size(2),
+            x.size(3),
+            device=x.device,
+        ) < pixel_ratio
+
+        x_noisy = x_origin + noise * pixel_mask
+        x_noisy = x_noisy.clamp(0.0, 1.0)
+
+        return (x_noisy - mean) / std
 
     def self_attention(self, selected_features, delta=False):
         if delta:
@@ -230,7 +262,7 @@ class CLIPModel(nn.Module):
             return features
 
 
-        x_ps = self.add_gaussian_noise(x, 0.3)
+        x_ps = self.add_gaussian_noise(x, noise_std=1.0, pixel_ratio=0.1)
         self.model.encode_image(x_ps)
         ps_all_cls_features = self._collect_all_cls_features()
         ps_selected_features, _ = self.selector(
