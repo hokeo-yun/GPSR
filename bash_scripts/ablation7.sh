@@ -2,7 +2,7 @@
 # class_labels = ['tvmonitor', 'diningtable']
 NAME="ablation7"
 TOTAL_EPOCHS=5
-TRAIN_CUDA=1
+TRAIN_CUDA=0
 CHECKPOINTS_DIR="checkpoints/"
 DATA_DIR="/home/108/u108009/dataset/ForenSynths"
 # DRCT: lr=0.0001, UFD: lr=0.00005
@@ -21,7 +21,7 @@ CUDA_VISIBLE_DEVICES="${TRAIN_CUDA}" python train.py \
     --save_epoch_freq=5 \
     --niter="${TOTAL_EPOCHS}"
 
-CUDA_ID="1"
+CUDA_ID="0"
 CKPT_PATH="./checkpoints/ablation7/best_model.pth"
 RESULT_FOLDER="./results/ablation7/"
 
