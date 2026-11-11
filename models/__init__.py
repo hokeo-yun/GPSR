@@ -46,11 +46,11 @@ def get_model(name, num_classes, select_k, training, p, ablation_opt):
     elif ablation_opt == 6:
         return ablation6.CLIPModel(name[5:], num_classes, select_k, training, p)
     elif ablation_opt == 7:
-        return ablation6.CLIPModel(name[5:], num_classes, select_k, training, p)
+        return ablation7.CLIPModel(name[5:], num_classes, select_k, training, p)
     elif ablation_opt == 8:
-        return ablation6.CLIPModel(name[5:], num_classes, select_k, training, p)
+        return ablation8.CLIPModel(name[5:], num_classes, select_k, training, p)
     elif ablation_opt == 9:
-        return ablation6.CLIPModel(name[5:], num_classes, select_k, training, p)
+        return ablation9.CLIPModel(name[5:], num_classes, select_k, training, p)
     else:
         if name.startswith("Imagenet:"):
             # return ImagenetModel(name[9:])
